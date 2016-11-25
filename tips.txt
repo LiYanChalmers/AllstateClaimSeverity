@@ -1,0 +1,30 @@
+1. how to tune single model, especially xgboost
+	most important hyperparameters for xgboost: eta, max_depth, col_sample_by_tree, gamma, 
+	subsample, alpha, min_child_weight. Start with big eta, then decrease eta. Use early 
+	stopping.
+	https://www.kaggle.com/c/allstate-claims-severity/forums/t/24611/single-model-performance?limit=all
+
+2. Bayesian optimization, hyperparameter tuning
+	https://github.com/fmfn/BayesianOptimization
+
+3. Useful kernels:
+	parameters:
+	https://www.kaggle.com/iglovikov/allstate-claims-severity/xgb-1114/code
+	encoding:
+	https://www.kaggle.com/modkzs/allstate-claims-severity/lexical-encoding-feature-comb/code
+	NN:
+	https://www.kaggle.com/mtinti/allstate-claims-severity/keras-starter-with-bagging-1111-84364/discussion
+	stacking:
+	https://www.kaggle.com/abhilashawasthi/allstate-claims-severity/stacking-starter/code
+	bagging:
+	https://www.kaggle.com/weimin/allstate-claims-severity/keras-starter-with-bagging-1111-84364
+	xgboost cv:
+	https://www.kaggle.com/mtinti/allstate-claims-severity/xgb-1110-from-vladimir-iglovikov-and-tilii7/comments
+
+4. string as feature in tree:
+	http://datascience.stackexchange.com/questions/5226/strings-as-features-in-decision-tree-random-forest/8458#8458
+
+5. models to consider
+	xgboost
+	NN
+	ridge
