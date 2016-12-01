@@ -22,8 +22,8 @@ parameter_list = read_data('parameterList.pkl')
 #%% baseline
 train_test, x_train, y_train, x_test, cols, cols_cat, cols_num = \
     process_load()
-train_test = comb_cat_feat_enc(5, 5)
-#train_test = read_data('train_test_encoded_xgb150_pairs30.pkl')
+#train_test = comb_cat_feat_enc(150, 35)
+train_test = read_data('train_test_encoded_xgb150_pairs35.pkl')
 x_train = train_test.iloc[:x_train.shape[0],:]
 x_test = train_test.iloc[x_train.shape[0]:,:]
 
@@ -33,15 +33,15 @@ gc.collect()
 regxgb = xgb.XGBRegressor(max_depth=12, learning_rate=0.1, 
                           objective=logregobj2, subsample=0.8,
                           colsample_bytree=0.5, min_child_weight=1,
-                          seed=0, n_estimators=75, base_score=7.8,
+                          seed=0, n_estimators=50000, base_score=7.8,
                           reg_alpha=1, gamma=1)
 
 param_list = read_data('parameterList.pkl')
-params = param_list[0:10] 
+params = param_list[94] 
 
 y_test_pred_list, y_train_pred_list, mae_list, ntree_list, param_list = \
-    xgb_gridcv(regxgb, params, x_train, y_train, x_test, cv=4, random_state=0)
+    xgb_gridcv(regxgb, params, x_train, y_train, x_test, cv=5, random_state=0)
     
-save_data('xgbHyperOpt0.pkl', 
+save_data('xgbHyperOpt94.pkl', 
           (y_test_pred_list, y_train_pred_list, mae_list, 
            ntree_list, param_list))

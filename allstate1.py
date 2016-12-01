@@ -77,9 +77,8 @@ def xgb_gridcv(reg, params, x_train, y_train, x_test, cv=3, random_state=0):
         y_train_pred_list.append(y_train_pred_)
         mae_list.append(mae_)
         ntree_list.append(ntree_)
-        
-        
-    return y_test_pred_list,y_train_pred_list,mae_list,ntree_list,param_list
+          
+    return y_test_pred_list,y_train_pred_list,mae_list,ntree_list,params
     
 def cv_predict_xgb(reg, x_train, y_train, x_test, cv=3, random_state=0, esr=300):
     kf = model_selection.KFold(n_splits=cv, shuffle=True, 
