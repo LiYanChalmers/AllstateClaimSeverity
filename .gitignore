@@ -2,3 +2,7 @@
 !selected_categorical_features.pkl
 !xgbRandomSearchCV2sort.pkl
 __pycache__/
+clusterHebbe/allstate2HOCluster[0-9][0-9].py
+clusterHebbe/allstate2HOCluster[0-9][0-9].sh
+clusterGlenn/allstate2HOCluster[0-9][0-9].py
+clusterGlenn/allstate2HOCluster[0-9][0-9].sh

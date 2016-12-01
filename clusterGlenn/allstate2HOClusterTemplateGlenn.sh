@@ -11,7 +11,7 @@ module purge
 
 module load gcc/4.9/4.9.2
 export PYTHONPATH="${PYTHONPATH}:/c3se/users/lyaa/Glenn/xgboost/python-package"
-export PATH="/c3se/users/lyaa/Hebbe/miniconda2/bin:$PATH"
+export PATH="/c3se/users/lyaa/Glenn/miniconda3/bin:$PATH"
 
 pdcp allstate1.py $TMPDIR
 pdcp allstate2HOClusterTemplate.py $TMPDIR
