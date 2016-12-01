@@ -63,12 +63,12 @@ def xgb_gridcv(reg, params, x_train, y_train, x_test, cv=3, random_state=0):
     np.random.seed(random_state)
     seed1 = np.random.randint(10000)
     seed2 = np.random.randint(10000)    
-    param_list = list(model_selection.ParameterGrid(params))
+#    param_list = list(model_selection.ParameterGrid(params))
     y_test_pred_list = []
     y_train_pred_list = []
     mae_list = []
     ntree_list = []
-    for p in param_list:
+    for p in params:
         for k, v in p.items():
             setattr(reg, k, v)
         y_test_pred_, y_train_pred_, mae_, ntree_ = \
