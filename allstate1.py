@@ -14,10 +14,22 @@ import pickle
 import itertools
 from sys import getsizeof
 import gc
+import os
 
 import xgboost as xgb
 from sklearn import (metrics, cross_validation, model_selection, ensemble, 
                      linear_model)
+import subprocess
+from scipy.sparse import csr_matrix, hstack
+from sklearn.metrics import mean_absolute_error
+from sklearn.preprocessing import StandardScaler
+from sklearn.cross_validation import KFold
+from keras.models import Sequential
+from keras.layers import Dense, Dropout, Activation
+from keras.layers.normalization import BatchNormalization
+from keras.layers.advanced_activations import PReLU
+from keras.callbacks import EarlyStopping
+
 
 SHIFT = 200 
 SKEW_TH = 0.25
@@ -305,45 +317,211 @@ def encode(charcode):
         r += (ord(str(charcode)[i]) - ord('A') + 1) * 26 ** (ln - i - 1)
     return r
     
+def process_data_keras(nrows=None, random_state=0):
+    """load and process data for keras"""
+    np.random.seed(random_state)
+    
+    train = pd.read_csv('train.csv')
+    test = pd.read_csv('test.csv')
+    if nrows is not None:
+        train = train.iloc[:nrows,:]
+        test = test.iloc[:nrows,:]
+    index = list(train.index)
+    np.random.shuffle(index)
+    train = train.iloc[index]
+    
+    test['loss'] = np.nan
+    
+    y = logs(train['loss']).as_matrix()
+    id_train = train['id'].values
+    id_test = test['id'].values
+    
+    ntrain = train.shape[0]
+    tr_te = pd.concat((train, test), axis=0)
+    
+    sparse_data = []
+    f_cat = [f for f in tr_te.columns if 'cat' in f]
+    for f in f_cat:
+        dummy = pd.get_dummies(tr_te[f].astype('category'))
+        tmp = csr_matrix(dummy)
+        sparse_data.append(tmp)
+    
+    f_num = [f for f in tr_te.columns if 'cont' in f]
+    scaler = StandardScaler()
+    tmp = csr_matrix(scaler.fit_transform(tr_te[f_num]))
+    sparse_data.append(tmp)
+    
+    del(tr_te, train, test)
+    
+    ## sparse train and test data
+    xtr_te = hstack(sparse_data, format = 'csr')
+    xtrain = xtr_te[:ntrain, :]
+    xtest = xtr_te[ntrain:, :]
+    
+    del(xtr_te, sparse_data, tmp)
+    
+    return xtrain, id_train, y, xtest, id_test
+    
+def batch_generator(X, y, batch_size, shuffle):
+    """For training data"""
+    number_of_batches = np.ceil(X.shape[0]/batch_size)
+    counter = 0
+    sample_index = np.arange(X.shape[0])
+    if shuffle:
+        np.random.shuffle(sample_index)
+    while True:
+        batch_index = sample_index[batch_size*counter:batch_size*(counter+1)]
+        X_batch = X[batch_index,:].toarray()
+        y_batch = y[batch_index]
+        counter += 1
+        yield X_batch, y_batch
+        if (counter == number_of_batches):
+            if shuffle:
+                np.random.shuffle(sample_index)
+            counter = 0
+
+def batch_generatorp(X, batch_size, shuffle):
+    """For testing data"""
+    number_of_batches = X.shape[0] / np.ceil(X.shape[0]/batch_size)
+    counter = 0
+    sample_index = np.arange(X.shape[0])
+    while True:
+        batch_index = sample_index[batch_size*counter:batch_size*(counter+1)]
+        X_batch = X[batch_index, :].toarray()
+        counter += 1
+        yield X_batch
+        if (counter == number_of_batches):
+            counter = 0
+            
+def nn_model(xtrain):
+    model = Sequential()
+    
+    model.add(Dense(400, input_dim = xtrain.shape[1], init = 'uniform'))
+    model.add(PReLU())
+    model.add(BatchNormalization())
+    model.add(Dropout(0.6))
+        
+    model.add(Dense(200, init = 'uniform'))
+    model.add(PReLU())
+    model.add(BatchNormalization())    
+    model.add(Dropout(0.6))
+    
+    model.add(Dense(100, init = 'uniform'))
+    model.add(PReLU())
+    model.add(BatchNormalization())    
+    model.add(Dropout(0.6))
+    
+    model.add(Dense(1, init = 'uniform'))
+    model.compile(loss = 'mae', optimizer = 'adam')
+    return model
+    
+def cv_predict_nn(model_fcn, x_train, y_train, x_test, batch_size=50, nepochs=5, 
+                  cv=3, random_state=0, patience=2):
+    kf = model_selection.KFold(n_splits=cv, shuffle=True, 
+                               random_state=random_state)
+    mae = []
+    y_test_pred = []
+    y_train_pred = np.zeros((y_train.shape[0],))
+    cnt = 0
+    for train_index, test_index in kf.split(x_train):
+        model = model_fcn(x_train)
+        x_train1 = x_train[train_index]
+        y_train1 = y_train[train_index]
+        x_train2 = x_train[test_index]
+        y_train2 = y_train[test_index]
+        early_stopping = EarlyStopping(monitor='val_loss', 
+                                       patience=patience)
+        fit = model.fit_generator(generator=batch_generator(x_train1, y_train1, 
+                                                      batch_size, True),
+                                  nb_epoch=nepochs,
+                                  samples_per_epoch=x_train1.shape[0], 
+                                  verbose=0, 
+                                  validation_data=batch_generator(x_train2, 
+                                                                  y_train2, 
+                                                                  batch_size, 
+                                                                  False),
+                                  nb_val_samples=x_train2.shape[0],
+                                  callbacks=[early_stopping])
+        y_pred2 = model.predict_generator(generator=batch_generatorp(x_train2, 
+                                                                     1000, 
+                                                                     False), 
+                                          val_samples=x_train2.shape[0])[:,0]
+        y_train_pred[test_index] = y_pred2
+        mae.append(mae_invlogs(y_train2, y_pred2))
+        y_tmp = model.predict_generator(generator=batch_generatorp(x_test,
+                                                                   1000, 
+                                                                   False), 
+                                        val_samples=x_test.shape[0])[:,0]
+        y_test_pred.append(y_tmp)
+        print('cv', cnt)
+        cnt += 1
+        
+    mae = np.array(mae)
+    print('Mean: ', mae.mean(), ' std: ', mae.std())
+    y_test_pred = np.mean(y_test_pred, axis=0)
+    
+    return y_test_pred, y_train_pred, mae
+    
+def cv_predict_nn_repeat(model_fcn, x_train, y_train, x_test, batch_size=100,
+                         nepochs=2, cv=3, random_state=0, patience=2, rep=1):
+    y_test_pred = []
+    y_train_pred = []
+    np.random.seed(random_state)
+    
+    for i in range(rep):
+        seed = np.random.randint(10000)
+        tmp_test, tmp_train, _ = cv_predict_nn(model_fcn, x_train, y_train,
+                                               x_test, batch_size=batch_size, 
+                                               nepochs=nepochs, cv=cv, 
+                                               random_state=seed, 
+                                               patience=patience)
+        y_test_pred.append(tmp_test)
+        y_train_pred.append(tmp_train)
+        
+    y_test_pred_mean = np.mean(y_test_pred, axis=0)
+    y_train_pred_mean = np.mean(y_train_pred, axis=0)
+    
+    return y_test_pred_mean, y_train_pred_mean, y_test_pred, y_train_pred
+    
 if __name__=='__main__':
 #%% load data and processing numeric features
-    train_test, x_train, y_train, x_test, cols, cols_cat, cols_num = \
-        process_load()
+#    train_test, x_train, y_train, x_test, cols, cols_cat, cols_num = \
+#        process_load()
         
 #%% feature importance
-    xgb_params = {
-    'seed': 0,
-    'colsample_bytree': 0.2,
-    'silent': 1,
-    'subsample': 0.7,
-    'learning_rate': 0.075,
-    'objective': 'reg:linear',
-    'max_depth': 6,
-    'min_child_weight': 1,
-    'booster': 'gbtree',
-    }
-    dtrain = xgb.DMatrix(x_train, label=y_train)
-    regxgb = xgb.train(xgb_params, dtrain, 250, [(dtrain, 'train')], 
-                       obj=logregobj, feval=mae_xgb, verbose_eval=True)
-    feature_importance = list(regxgb.get_fscore().items())
-    total_score = sum(regxgb.get_fscore().values())
-    feature_importance = [(i[0], 1.0*i[1]/total_score) 
-        for i in feature_importance]
-    feature_importance = sorted(feature_importance, key=lambda x: x[1], 
-                                reverse=True)
-    cat_importance = [i for i in feature_importance if 'cat' in i[0]]
-    selected_xgb = cat_importance[:35]
-    selected_xgb = set([i[0] for i in selected_xgb])
-    selected_forum = {'cat103', 'cat72', 'cat82', 'cat1', 'cat10', 'cat11',
-                      'cat111', 'cat12', 'cat13', 'cat14', 'cat16', 'cat2',
-                      'cat23', 'cat24', 'cat25', 'cat28', 'cat3', 'cat36',
-                      'cat38', 'cat4', 'cat40', 'cat5', 'cat50', 'cat57',
-                      'cat6', 'cat7', 'cat73', 'cat76', 'cat79', 'cat80',
-                       'cat81', 'cat87', 'cat89', 'cat9', 'cat90'}
-    selected_combined = selected_xgb.union(selected_forum)
-    save_data('selected_categorical_features.pkl', 
-              (selected_xgb,selected_forum,selected_combined, cat_importance))
-    mae_sk = metrics.make_scorer(mae_invlogs, greater_is_better=False)
+#    xgb_params = {
+#    'seed': 0,
+#    'colsample_bytree': 0.2,
+#    'silent': 1,
+#    'subsample': 0.7,
+#    'learning_rate': 0.075,
+#    'objective': 'reg:linear',
+#    'max_depth': 6,
+#    'min_child_weight': 1,
+#    'booster': 'gbtree',
+#    }
+#    dtrain = xgb.DMatrix(x_train, label=y_train)
+#    regxgb = xgb.train(xgb_params, dtrain, 250, [(dtrain, 'train')], 
+#                       obj=logregobj, feval=mae_xgb, verbose_eval=True)
+#    feature_importance = list(regxgb.get_fscore().items())
+#    total_score = sum(regxgb.get_fscore().values())
+#    feature_importance = [(i[0], 1.0*i[1]/total_score) 
+#        for i in feature_importance]
+#    feature_importance = sorted(feature_importance, key=lambda x: x[1], 
+#                                reverse=True)
+#    cat_importance = [i for i in feature_importance if 'cat' in i[0]]
+#    selected_xgb = cat_importance[:35]
+#    selected_xgb = set([i[0] for i in selected_xgb])
+#    selected_forum = {'cat103', 'cat72', 'cat82', 'cat1', 'cat10', 'cat11',
+#                      'cat111', 'cat12', 'cat13', 'cat14', 'cat16', 'cat2',
+#                      'cat23', 'cat24', 'cat25', 'cat28', 'cat3', 'cat36',
+#                      'cat38', 'cat4', 'cat40', 'cat5', 'cat50', 'cat57',
+#                      'cat6', 'cat7', 'cat73', 'cat76', 'cat79', 'cat80',
+#                       'cat81', 'cat87', 'cat89', 'cat9', 'cat90'}
+#    selected_combined = selected_xgb.union(selected_forum)
+#    save_data('selected_categorical_features.pkl', 
+#              (selected_xgb,selected_forum,selected_combined, cat_importance))
+#    mae_sk = metrics.make_scorer(mae_invlogs, greater_is_better=False)
     
     
 #%% models
@@ -378,33 +556,51 @@ if __name__=='__main__':
 #    train_test = comb_cat_feat_enc(50, 35)
 
 #%% feature encoding
-    train = pd.read_csv('train.csv')
-    test = pd.read_csv('test.csv')
-    train.drop(['id', 'loss'], axis=1, inplace=True)
-    test.drop('id', axis=1, inplace=True)
-    train_test = pd.concat((train, test))
-    values = set()
-    cols = list(train.columns)
-    cols_cat = [i for i in cols if 'cat' in i]
-    for c in cols_cat:
-        values = list(np.unique(train_test[c].values))
-        to_replace = {v:encode(v) for v in values}
-        train_test[c].replace(to_replace, inplace=True)
-        print(c, list(np.unique(train_test[c].values)))
-        
-    save_data('train_test_encoded.pkl', train_test)
+#    train = pd.read_csv('train.csv')
+#    test = pd.read_csv('test.csv')
+#    train.drop(['id', 'loss'], axis=1, inplace=True)
+#    test.drop('id', axis=1, inplace=True)
+#    train_test = pd.concat((train, test))
+#    values = set()
+#    cols = list(train.columns)
+#    cols_cat = [i for i in cols if 'cat' in i]
+#    for c in cols_cat:
+#        values = list(np.unique(train_test[c].values))
+#        to_replace = {v:encode(v) for v in values}
+#        train_test[c].replace(to_replace, inplace=True)
+#        print(c, list(np.unique(train_test[c].values)))
+#        
+#    save_data('train_test_encoded.pkl', train_test)
     
 #%% parameter list
-    params = {}
-    params['max_depth'] = [9, 12, 15, 18, 21, 24]
-    #params['max_depth'] = [1, 2]
-    params['learning_rate'] = [0.01]
-    params['subsample'] = [0.2, 0.3, 0.4, 0.5, 0.6, 0.8]
-    params['colsample_bytree'] = [0.2, 0.4, 0.6, 0.8]
-    params['min_child_weight'] = [1, 3, 5]
-    #params['base_score'] = [1, 2, 4, 8]
-    params['alpha'] = [1, 2, 5]
-    params['gamma'] = [1, 3, 5, 10]
-    
-    parameter_list = list(model_selection.ParameterSampler(params, 100, 0))
-    save_data('parameterList.pkl', parameter_list)
+#    params = {}
+#    params['max_depth'] = [9, 12, 15, 18, 21, 24]
+#    #params['max_depth'] = [1, 2]
+#    params['learning_rate'] = [0.01]
+#    params['subsample'] = [0.2, 0.3, 0.4, 0.5, 0.6, 0.8]
+#    params['colsample_bytree'] = [0.2, 0.4, 0.6, 0.8]
+#    params['min_child_weight'] = [1, 3, 5]
+#    #params['base_score'] = [1, 2, 4, 8]
+#    params['alpha'] = [1, 2, 5]
+#    params['gamma'] = [1, 3, 5, 10]
+#    
+#    parameter_list = list(model_selection.ParameterSampler(params, 100, 0))
+#    save_data('parameterList.pkl', parameter_list)
+
+#%% keras
+    if not os.path.exists('input_keras.pkl'):
+        x_train, id_train, y_train, x_test, id_test = process_data_keras()
+        save_data('input_keras.pkl', (x_train, id_train, y_train, 
+                                      x_test, id_test))
+    else:
+        x_train, id_train, y_train, x_test, id_test = \
+            read_data('input_keras.pkl')
+    model = nn_model(x_train)
+#    y_test_pred, y_train_pred, mae = cv_predict_nn(model, x_train, y, 
+#                                                   x_test, batch_size=100, 
+#                                                   nepochs=2, cv=2, 
+#                                                   random_state=0)
+    y_test_pred_mean, y_train_pred_mean, y_test_pred, y_train_pred = \
+        cv_predict_nn_repeat(model, x_train, y_train, x_test, batch_size=100,
+                             nepochs=200, cv=2, random_state=0, rep=2)
+    save_submission(y_test_pred_mean, 'keras0_submission.csv')
