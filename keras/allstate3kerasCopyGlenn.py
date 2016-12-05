@@ -19,17 +19,16 @@ for i in range(n_rounds):
     dst = 'allstate3kerasGlenn'+str(i)+'.py'
     dst = os.path.join(dirname, dst)
     
-    newline22 = "                         "+\
-        "nepochs=200, cv=5, rep="+str(rep)+\
-        ", patience=5, random_state="+str(i)+") \n"
-    newline24 = "save_data('KF"+str(i)+".pkl', \n"
+    newline23 = "                         "+\
+        "rep="+str(rep)+", patience=5, random_state="+str(i)+") \n"
+    newline25 = "save_data('KF"+str(i)+".pkl', \n"
     destination = open(dst, "w", newline='')
     source = open( src, "r" )
     for l, line in enumerate(source):
-        if l==22:
-            destination.write(newline22)
-        elif l==24:
-            destination.write(newline24)
+        if l==23:
+            destination.write(newline23)
+        elif l==25:
+            destination.write(newline25)
         else:
             destination.write(line)
 

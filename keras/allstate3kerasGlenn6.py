@@ -20,7 +20,8 @@ else:
 #%%
 y_test_pred_mean, y_train_pred_mean, y_test_pred, y_train_pred = \
     cv_predict_nn_repeat(nn_model, x_train, y_train, x_test, batch_size=128,
-                         nepochs=200, cv=5, rep=1, patience=5, random_state=6) 
+                         nepochs=200, cv=10, 
+                         rep=1, patience=5, random_state=6) 
 
 save_data('KF6.pkl', 
-          (y_test_pred_mean, y_train_pred_mean, y_test_pred, y_train_pred )
+          (y_test_pred_mean, y_train_pred_mean, y_test_pred, y_train_pred ))
