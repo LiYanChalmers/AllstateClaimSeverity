@@ -604,9 +604,9 @@ if __name__=='__main__':
 
 
 #%% test comb_cat_feat_enc(n_xgb_feats, n_comb_feats)
-#    train_test = comb_cat_feat_enc(50, 35)
+    train_test = comb_cat_feat_enc(150, 35)
 
-#%% feature encoding
+#%% train_test_encoded.pkl
 #    train = pd.read_csv('train.csv')
 #    test = pd.read_csv('test.csv')
 #    train.drop(['id', 'loss'], axis=1, inplace=True)
@@ -639,17 +639,17 @@ if __name__=='__main__':
 #    save_data('parameterList.pkl', parameter_list)
 
 #%% keras
-    if not os.path.exists('input_keras.pkl'):
-        x_train, y_train, x_test, folds = process_data_keras(nfolds=10, nrows=None, random_state=0)
-        save_data('input_keras.pkl', (x_train, y_train, 
-                                      x_test, folds))
-    else:
-        x_train, y_train, x_test, folds = \
-            read_data('input_keras.pkl')
-    model = nn_model(x_train)
-    nbags = 2
-    nepochs = 2
-    random_state = 0
-    pred_test, pred_oob = bag_predict_nn(nn_model, x_train, y_train, 
-                                         x_test, folds, nbags, 
-                                         nepochs, random_state)
+#    if not os.path.exists('input_keras.pkl'):
+#        x_train, y_train, x_test, folds = process_data_keras(nfolds=10, nrows=None, random_state=0)
+#        save_data('input_keras.pkl', (x_train, y_train, 
+#                                      x_test, folds))
+#    else:
+#        x_train, y_train, x_test, folds = \
+#            read_data('input_keras.pkl')
+#    model = nn_model(x_train)
+#    nbags = 2
+#    nepochs = 2
+#    random_state = 0
+#    pred_test, pred_oob = bag_predict_nn(nn_model, x_train, y_train, 
+#                                         x_test, folds, nbags, 
+#                                         nepochs, random_state)

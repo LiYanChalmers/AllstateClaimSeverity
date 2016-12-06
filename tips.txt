@@ -28,3 +28,18 @@
 	xgboost
 	NN
 	ridge
+
+6. How to tune Keras
+	https://www.kaggle.com/mtinti/allstate-claims-severity/keras-starter-with-bagging-1111-84364/comments
+
+7. Kinect features
+	https://www.kaggle.com/alexandrudaia/allstate-claims-severity/derived-kinetic-features/discussion
+
+8. H2O R
+	https://www.kaggle.com/tobikaggle/allstate-claims-severity/h2o-dnn-averaging-in-r/comments
+
+9. Ensemble weight
+	https://www.kaggle.com/tilii7/allstate-claims-severity/ensemble-weights-minimization-vs-mcmc/comments
+
+10. TSNE
+	https://www.kaggle.com/c/allstate-claims-severity/forums/t/26115/barnes-hut-tsne-part-iv-last-part
