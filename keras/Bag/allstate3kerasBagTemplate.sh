@@ -20,6 +20,6 @@ cd $TMPDIR
 ##
 python allstate2HOClusterTemplate.py
 
-cp * $SLURM_SUBMIT_DIR
+cp *.pkl $SLURM_SUBMIT_DIR
 
 # End script

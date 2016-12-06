@@ -10,13 +10,13 @@ from allstate1 import *
 
 
 
-nbags = 1
-nepochs = 100
+nbags = 10
+nepochs = 200
 random_state = 2732
 filename = 'BG0.pkl'
-x_train, y_train, x_test, folds = process_data_keras(nfolds=3, nrows=1000, 
+x_train, y_train, x_test, folds = process_data_keras(nfolds=10, nrows=None, 
                                                      random_state=random_state)
 pred_test, pred_oob = bag_predict_nn(nn_model, x_train, y_train, x_test, 
                                      folds, nbags, nepochs, random_state,
-                                     patience=20, verbose=2)
+                                     patience=5, verbose=2)
 save_data(filename, (pred_test, pred_oob))
