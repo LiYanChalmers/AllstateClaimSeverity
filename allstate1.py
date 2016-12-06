@@ -318,24 +318,17 @@ def encode(charcode):
         r += (ord(str(charcode)[i]) - ord('A') + 1) * 26 ** (ln - i - 1)
     return r
     
-def process_data_keras(nrows=None, random_state=0):
-    """load and process data for keras"""
-    np.random.seed(random_state)
-    
+def process_data_keras(nfolds=5, nrows=None, random_state=0):
+    """load and process data for keras"""   
     train = pd.read_csv('train.csv')
     test = pd.read_csv('test.csv')
     if nrows is not None:
         train = train.iloc[:nrows,:]
         test = test.iloc[:nrows,:]
     index = list(train.index)
-    np.random.shuffle(index)
     train = train.iloc[index]
-    
     test['loss'] = np.nan
-    
     y = logs(train['loss']).as_matrix()
-    id_train = train['id'].values
-    id_test = test['id'].values
     
     ntrain = train.shape[0]
     tr_te = pd.concat((train, test), axis=0)
@@ -361,14 +354,18 @@ def process_data_keras(nrows=None, random_state=0):
     
     del(xtr_te, sparse_data, tmp)
     
-    return xtrain, id_train, y, xtest, id_test
+    folds = KFold(len(y), n_folds=nfolds, shuffle=True, 
+              random_state=random_state)
     
-def batch_generator(X, y, batch_size, shuffle):
+    return xtrain, y, xtest, folds
+    
+def batch_generator(X, y, batch_size, shuffle, random_state):
     """For training data"""
     number_of_batches = np.ceil(X.shape[0]/batch_size)
     counter = 0
     sample_index = np.arange(X.shape[0])
     if shuffle:
+        np.random.seed(random_state)
         np.random.shuffle(sample_index)
     while True:
         batch_index = sample_index[batch_size*counter:batch_size*(counter+1)]
@@ -381,7 +378,7 @@ def batch_generator(X, y, batch_size, shuffle):
                 np.random.shuffle(sample_index)
             counter = 0
 
-def batch_generatorp(X, batch_size, shuffle):
+def batch_generatorp(X, batch_size):
     """For testing data"""
     number_of_batches = X.shape[0] / np.ceil(X.shape[0]/batch_size)
     counter = 0
@@ -397,24 +394,24 @@ def batch_generatorp(X, batch_size, shuffle):
 def nn_model(xtrain):
     model = Sequential()
     
-    model.add(Dense(400, input_dim = xtrain.shape[1], init = 'uniform'))
+    model.add(Dense(400, input_dim = xtrain.shape[1], init = 'he_normal'))
     model.add(PReLU())
     model.add(BatchNormalization())
-    model.add(Dropout(0.6))
+    model.add(Dropout(0.4))
         
-    model.add(Dense(200, init = 'uniform'))
+    model.add(Dense(200, init = 'he_normal'))
     model.add(PReLU())
     model.add(BatchNormalization())    
-    model.add(Dropout(0.6))
+    model.add(Dropout(0.2))
     
-    model.add(Dense(100, init = 'uniform'))
+    model.add(Dense(50, init = 'he_normal'))
     model.add(PReLU())
     model.add(BatchNormalization())    
-    model.add(Dropout(0.6))
+    model.add(Dropout(0.2))
     
-    model.add(Dense(1, init = 'uniform'))
-    model.compile(loss = 'mae', optimizer = 'adam')
-    return model
+    model.add(Dense(1, init = 'he_normal'))
+    model.compile(loss = 'mae', optimizer = 'adadelta')
+    return(model)
     
 def cv_predict_nn(model_fcn, x_train, y_train, x_test, batch_size=50, nepochs=5, 
                   cv=3, random_state=0, patience=2):
@@ -501,6 +498,41 @@ def optimize_weights(obj, y_train_preds, y_test_preds, y_train):
         bounds=bounds, constraints=constraints)
     final_weights = res.x
     weight_optimize_res = res
+    
+def bag_predict_nn(nn_model, xtrain, y, xtest, folds, nbags, nepochs,
+                   random_state, patience=2, verbose=2):
+    pred_oob = np.zeros(xtrain.shape[0])
+    pred_test = np.zeros(xtest.shape[0])
+    
+    i = 0
+    for (inTr, inTe) in folds:
+        xtr = xtrain[inTr]
+        ytr = y[inTr]
+        xte = xtrain[inTe]
+        yte = y[inTe]
+        pred = np.zeros(xte.shape[0])
+        for j in range(nbags):
+            model = nn_model(xtrain)
+            early_stopping = EarlyStopping(monitor='val_loss', 
+                                           patience=patience)
+            fit = model.fit_generator(generator = batch_generator(xtr, ytr, 128, True, random_state),
+                                      nb_epoch = nepochs,
+                                      samples_per_epoch = xtr.shape[0],
+                                      validation_data=(xte.todense(), yte), 
+                                      verbose = verbose,
+                                      callbacks=[early_stopping])
+            temp = model.predict_generator(generator = batch_generatorp(xte, 800), val_samples = xte.shape[0])[:,0]
+            pred += temp
+            print("Fold val bagging score after", j+1, "rounds is: ", mean_absolute_error(yte, pred/(j+1)))
+            pred_test += model.predict_generator(generator = batch_generatorp(xtest, 800), val_samples = xtest.shape[0])[:,0]
+        pred /= nbags
+        pred_oob[inTe] = pred
+        score = mean_absolute_error(yte, pred)
+        i += 1
+        print('Fold ', i, '- MAE:', score)
+        
+    pred_test /= (folds.n_folds*nbags)
+    return pred_test, pred_oob
     
 if __name__=='__main__':
 #%% load data and processing numeric features
@@ -608,18 +640,16 @@ if __name__=='__main__':
 
 #%% keras
     if not os.path.exists('input_keras.pkl'):
-        x_train, id_train, y_train, x_test, id_test = process_data_keras()
-        save_data('input_keras.pkl', (x_train, id_train, y_train, 
-                                      x_test, id_test))
+        x_train, y_train, x_test, folds = process_data_keras(nfolds=10, nrows=None, random_state=0)
+        save_data('input_keras.pkl', (x_train, y_train, 
+                                      x_test, folds))
     else:
-        x_train, id_train, y_train, x_test, id_test = \
+        x_train, y_train, x_test, folds = \
             read_data('input_keras.pkl')
     model = nn_model(x_train)
-#    y_test_pred, y_train_pred, mae = cv_predict_nn(model, x_train, y, 
-#                                                   x_test, batch_size=100, 
-#                                                   nepochs=2, cv=2, 
-#                                                   random_state=0)
-    y_test_pred_mean, y_train_pred_mean, y_test_pred, y_train_pred = \
-        cv_predict_nn_repeat(model, x_train, y_train, x_test, batch_size=100,
-                             nepochs=200, cv=2, random_state=0, rep=2)
-    save_submission(y_test_pred_mean, 'keras0_submission.csv')
+    nbags = 2
+    nepochs = 2
+    random_state = 0
+    pred_test, pred_oob = bag_predict_nn(nn_model, x_train, y_train, 
+                                         x_test, folds, nbags, 
+                                         nepochs, random_state)

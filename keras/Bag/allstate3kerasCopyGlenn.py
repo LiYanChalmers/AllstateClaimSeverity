@@ -14,26 +14,21 @@ np.random.seed(0)
 
 dirname=''
 # .py files
-rep = 1
-runs = 50
-n_rounds = int(round(50/rep))
+n_rounds = 100
 for i in range(n_rounds):
-    src = os.path.join(dirname, 'kerasStarter2.py')
+    src = os.path.join(dirname, 'allstate3kerasBagTemplate.py')
     dst = 'BG'+str(i)+'.py'
     dst = os.path.join(dirname, dst)
     
-    newline16 = "np.random.seed("+str(np.random.randint(1000))+")\n"
-    newline171 = "df.to_csv('bag_oob"+str(i)+".csv', index = False)\n"
-    newline176 = "df.to_csv('bag_sub"+str(i)+".csv', index = False) \n"
+    newline14 = "random_state = "+str(np.random.randint(10000))+"\n"
+    newline15 = "filename = 'BG"+str(i)+".pkl'\n"
     destination = open(dst, "w", newline='')
     source = open( src, "r" )
     for l, line in enumerate(source):
-        if l==16:
-            destination.write(newline16)
-        elif l==171:
-            destination.write(newline171)
-        elif l==176:
-            destination.write(newline176)
+        if l==14:
+            destination.write(newline14)
+        elif l==15:
+            destination.write(newline15)
         else:
             destination.write(line)
 
@@ -70,3 +65,4 @@ for i in range(n_rounds):
     source.close()
     destination.close()
     
+copyfile('../../allstate1.py', './allstate1.py')

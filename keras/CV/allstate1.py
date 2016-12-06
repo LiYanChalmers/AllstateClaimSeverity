@@ -492,12 +492,12 @@ def obj_opt_lin(w, y_true, y_pred):
     y_pred = np.dot(invlogs(y_pred), w)
     return metrics.mean_absolute_error(invlogs(y_true), y_pred)
     
-def optimize_weights(obj, y_train_preds, y_test_preds, y_train):
+def optimize_weights(obj, w0, y_train_preds, y_test_preds, y_train):
     ndim = y_train_preds.shape[1]
-    initial_weights = 1.0/ndim*np.ones((ndim, ))
+#    initial_weights = 1.0/ndim*np.ones((ndim, ))
     bounds = [(0, 1) for i in range(ndim)]
     constraints = {'type': 'eq', 'fun': lambda w: 1-sum(w)}
-    res = optimize.minimize(obj, initial_weights,
+    res = optimize.minimize(obj, w0,
         bounds=bounds, constraints=constraints)
     final_weights = res.x
     weight_optimize_res = res

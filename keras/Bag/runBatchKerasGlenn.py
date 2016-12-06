@@ -8,9 +8,7 @@ Created on Mon Dec  5 18:53:32 2016
 
 from subprocess import call
 
-rep = 1
-runs = 50
-n_rounds = int(round(runs/rep))
+n_rounds = 100
 for i in range(n_rounds):
     dst = 'BG'+str(i)+'.sh'
     call(['sbatch', dst])

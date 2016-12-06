@@ -43,6 +43,6 @@ for i in range(n_rounds):
 y_test_pred_mean = np.array(y_test_pred_list).mean(axis=0)
 y_train_pred_mean = np.array(y_train_pred_list).mean(axis=0)
 
-save_data('xgbCV.pkl', (y_test_pred_mean, y_train_pred_mean))
+save_data('xgbCV.pkl', (y_test_pred_list, y_train_pred_list))
 
 save_submission(invlogs(y_test_pred_mean), 'xgbCV_submission.csv')

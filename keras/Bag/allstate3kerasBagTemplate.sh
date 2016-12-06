@@ -12,7 +12,7 @@ module purge
 export PYTHONPATH="${PYTHONPATH}:/c3se/NOBACKUP/users/lyaa/Hebbe/xgboost/python-package"
 export PATH="/c3se/NOBACKUP/users/lyaa/Hebbe/miniconda3/bin:$PATH"
 
-
+pdcp allstate1.py $TMPDIR
 pdcp allstate2HOClusterTemplate.py $TMPDIR
 pdcp ../allstate/{train,test,sample_submission}.csv $TMPDIR
 
