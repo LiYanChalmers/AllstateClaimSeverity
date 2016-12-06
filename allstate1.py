@@ -10,6 +10,7 @@ import pandas as pd
 import numpy as np
 import scipy as sp
 import scipy.stats
+from scipy import optimize
 import pickle
 import itertools
 from sys import getsizeof
@@ -482,6 +483,24 @@ def cv_predict_nn_repeat(model_fcn, x_train, y_train, x_test, batch_size=100,
     y_train_pred_mean = np.mean(y_train_pred, axis=0)
     
     return y_test_pred_mean, y_train_pred_mean, y_test_pred, y_train_pred
+    
+def obj_opt_geo(w, y_true, y_pred):
+    y_pred = np.dot(y_pred, w)
+    return mae_invlogs(y_true, y_pred)
+    
+def obj_opt_lin(w, y_true, y_pred):
+    y_pred = np.dot(invlogs(y_pred), w)
+    return metrics.mean_absolute_error(invlogs(y_true), y_pred)
+    
+def optimize_weights(obj, y_train_preds, y_test_preds, y_train):
+    ndim = y_train_preds.shape[1]
+    initial_weights = 1.0/ndim*np.ones((ndim, ))
+    bounds = [(0, 1) for i in range(ndim)]
+    constraints = {'type': 'eq', 'fun': lambda w: 1-sum(w)}
+    res = optimize.minimize(obj, initial_weights,
+        bounds=bounds, constraints=constraints)
+    final_weights = res.x
+    weight_optimize_res = res
     
 if __name__=='__main__':
 #%% load data and processing numeric features
