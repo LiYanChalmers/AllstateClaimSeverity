@@ -30,6 +30,7 @@ from keras.layers import Dense, Dropout, Activation
 from keras.layers.normalization import BatchNormalization
 from keras.layers.advanced_activations import PReLU
 from keras.callbacks import EarlyStopping
+from functools import partial
 
 
 SHIFT = 200 
@@ -513,14 +514,21 @@ def bag_predict_nn(nn_model, xtrain, y, xtest, folds, nbags, nepochs,
         pred = np.zeros(xte.shape[0])
         for j in range(nbags):
             model = nn_model(xtrain)
-            early_stopping = EarlyStopping(monitor='val_loss', 
-                                           patience=patience)
-            fit = model.fit_generator(generator = batch_generator(xtr, ytr, 128, True, random_state),
-                                      nb_epoch = nepochs,
-                                      samples_per_epoch = xtr.shape[0],
-                                      validation_data=(xte.todense(), yte), 
-                                      verbose = verbose,
-                                      callbacks=[early_stopping])
+            if patience>0:
+                early_stopping = EarlyStopping(monitor='val_loss', 
+                                               patience=patience)
+                fit = model.fit_generator(generator = batch_generator(xtr, ytr, 128, True, random_state),
+                                          nb_epoch = nepochs,
+                                          samples_per_epoch = xtr.shape[0],
+                                          validation_data=(xte.todense(), yte), 
+                                          verbose = verbose,
+                                          callbacks=[early_stopping])
+            else:
+                fit = model.fit_generator(generator = batch_generator(xtr, ytr, 128, True, random_state),
+                                          nb_epoch = nepochs,
+                                          samples_per_epoch = xtr.shape[0],
+                                          validation_data=(xte.todense(), yte), 
+                                          verbose = verbose)
             temp = model.predict_generator(generator = batch_generatorp(xte, 800), val_samples = xte.shape[0])[:,0]
             pred += temp
             print("Fold val bagging score after", j+1, "rounds is: ", mean_absolute_error(yte, pred/(j+1)))
