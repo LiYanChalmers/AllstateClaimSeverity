@@ -489,15 +489,20 @@ def obj_opt_lin(w, y_true, y_pred):
     y_pred = np.dot(invlogs(y_pred), w)
     return metrics.mean_absolute_error(invlogs(y_true), y_pred)
     
-def optimize_weights(obj, y_train_preds, y_test_preds, y_train):
+def optimize_weights(obj, initial_weights, y_train_preds, y_test_preds, y_train):
+    """Optimize weights
+    """
     ndim = y_train_preds.shape[1]
-    initial_weights = 1.0/ndim*np.ones((ndim, ))
+#    initial_weights = 1.0/ndim*np.ones((ndim, ))
     bounds = [(0, 1) for i in range(ndim)]
     constraints = {'type': 'eq', 'fun': lambda w: 1-sum(w)}
     res = optimize.minimize(obj, initial_weights,
         bounds=bounds, constraints=constraints)
     final_weights = res.x
     weight_optimize_res = res
+    y_val = np.dot(y_test_preds, final_weights)
+    
+    return y_val, final_weights, weight_optimize_res, 
     
 def bag_predict_nn(nn_model, xtrain, y, xtest, folds, nbags, nepochs,
                    random_state, patience=2, verbose=2):
@@ -513,14 +518,21 @@ def bag_predict_nn(nn_model, xtrain, y, xtest, folds, nbags, nepochs,
         pred = np.zeros(xte.shape[0])
         for j in range(nbags):
             model = nn_model(xtrain)
-            early_stopping = EarlyStopping(monitor='val_loss', 
-                                           patience=patience)
-            fit = model.fit_generator(generator = batch_generator(xtr, ytr, 128, True, random_state),
-                                      nb_epoch = nepochs,
-                                      samples_per_epoch = xtr.shape[0],
-                                      validation_data=(xte.todense(), yte), 
-                                      verbose = verbose,
-                                      callbacks=[early_stopping])
+            if patience>0:
+                early_stopping = EarlyStopping(monitor='val_loss', 
+                                               patience=patience)
+                fit = model.fit_generator(generator = batch_generator(xtr, ytr, 128, True, random_state),
+                                          nb_epoch = nepochs,
+                                          samples_per_epoch = xtr.shape[0],
+                                          validation_data=(xte.todense(), yte), 
+                                          verbose = verbose,
+                                          callbacks=[early_stopping])
+            else:
+                fit = model.fit_generator(generator = batch_generator(xtr, ytr, 128, True, random_state),
+                                          nb_epoch = nepochs,
+                                          samples_per_epoch = xtr.shape[0],
+                                          validation_data=(xte.todense(), yte), 
+                                          verbose = verbose)
             temp = model.predict_generator(generator = batch_generatorp(xte, 800), val_samples = xte.shape[0])[:,0]
             pred += temp
             print("Fold val bagging score after", j+1, "rounds is: ", mean_absolute_error(yte, pred/(j+1)))
@@ -604,7 +616,7 @@ if __name__=='__main__':
 
 
 #%% test comb_cat_feat_enc(n_xgb_feats, n_comb_feats)
-#    train_test = comb_cat_feat_enc(50, 35)
+#    train_test = comb_cat_feat_enc(150, 35)
 
 #%% feature encoding
 #    train = pd.read_csv('train.csv')
@@ -639,17 +651,19 @@ if __name__=='__main__':
 #    save_data('parameterList.pkl', parameter_list)
 
 #%% keras
-    if not os.path.exists('input_keras.pkl'):
-        x_train, y_train, x_test, folds = process_data_keras(nfolds=10, nrows=None, random_state=0)
-        save_data('input_keras.pkl', (x_train, y_train, 
-                                      x_test, folds))
-    else:
-        x_train, y_train, x_test, folds = \
-            read_data('input_keras.pkl')
-    model = nn_model(x_train)
-    nbags = 2
-    nepochs = 2
-    random_state = 0
-    pred_test, pred_oob = bag_predict_nn(nn_model, x_train, y_train, 
-                                         x_test, folds, nbags, 
-                                         nepochs, random_state)
+#    if not os.path.exists('input_keras.pkl'):
+#        x_train, y_train, x_test, folds = process_data_keras(nfolds=10, nrows=None, random_state=0)
+#        save_data('input_keras.pkl', (x_train, y_train, 
+#                                      x_test, folds))
+#    else:
+#        x_train, y_train, x_test, folds = \
+#            read_data('input_keras.pkl')
+#    model = nn_model(x_train)
+#    nbags = 2
+#    nepochs = 2
+#    random_state = 0
+#    pred_test, pred_oob = bag_predict_nn(nn_model, x_train, y_train, 
+#                                         x_test, folds, nbags, 
+#                                         nepochs, random_state)
+
+    print('allstate1')
