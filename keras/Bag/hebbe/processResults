@@ -9,6 +9,7 @@ Created on Sun Dec 11 21:46:45 2016
 from allstate1 import *
 from functools import partial
 
+# keras
 pred_test0, pred_oob0 = read_data('BG0.pkl')
 save_submission(invlogs(pred_test0), 'kerasBag0_submission.csv')
 pred_test1, pred_oob1 = read_data('BG1.pkl')
@@ -16,26 +17,40 @@ save_submission(invlogs(pred_test1), 'kerasBag1_submission.csv')
 pred_test = (pred_test0+pred_test1)/2.0
 save_submission(invlogs(pred_test), 'kerasBag3_submission.csv')
 
-test_pred_xgb, train_pred_xgb = read_data('xgbCV.pkl')
-
 y_test_keras = np.array([pred_test0, pred_test1]).T
 y_train_keras = np.array([pred_oob0, pred_oob1]).T
+
+# xgb
+test_pred_xgb, train_pred_xgb = read_data('xgbCV.pkl')                         
 y_test_xgb = np.array(test_pred_xgb).T
 y_train_xgb = np.array(train_pred_xgb).T
+
+# svr
+y_test_svr, y_train_svr, mae, param_sample, runtime = \
+    read_data('svr_sample31.pkl')
+y_test_svr.shape = (y_test_svr.shape[0], 1)
+y_train_svr.shape = (y_train_svr.shape[0], 1)
 #
-y_train_pred = np.hstack((y_train_keras, y_train_xgb))
-y_test_pred = np.hstack((y_test_keras, y_test_xgb))
+y_train_pred = np.hstack((y_train_keras, y_train_xgb, y_train_svr))
+y_test_pred = np.hstack((y_test_keras, y_test_xgb, y_test_svr))
 #
 ndim = y_train_pred.shape[1]
 w0 = 1.0/ndim*np.ones((ndim, ))
+#w0 = np.random.uniform(size=(ndim, ))
+#w0 = w0/sum(w0)
 
 _, y_train, _, _ = process_data_keras(nfolds=5, nrows=None, random_state=0)
 y_train = pd.DataFrame(y_train)
 
-w0 = np.ones((y_train_pred.shape[1], ))/y_train_pred.shape[1]
+#w0 = np.ones((y_train_pred.shape[1], ))/y_train_pred.shape[1]
 obj_geo = partial(obj_opt_geo, y_true=y_train, y_pred=y_train_pred)
 y_test_geo, w_geo, res_geo = optimize_weights(obj_geo, w0, y_train_pred, y_test_pred, y_train)
-save_submission(invlogs(y_test_geo), 'kerasBag_geo2_submission.csv')
+
+# 2 keras, 100 xgb
+#save_submission(invlogs(y_test_geo), 'kerasBag_geo2_submission.csv')
+# 2 keras, 100 xgb, 1 svr
+save_submission(invlogs(y_test_geo), 'kerasBag_geo3_submission.csv')
+
 #obj_lin = partial(obj_opt_lin, y_true=y_train, y_pred=y_train_pred)
 #y_test_lin, w_lin, res_lin = optimize_weights(obj_lin, w0, y_train_pred, y_test_pred, y_train)
 #

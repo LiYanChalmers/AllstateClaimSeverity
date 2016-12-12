@@ -4,12 +4,6 @@ Created on Fri Dec  2 07:34:24 2016
 
 @author: celin
 """
-# -*- coding: utf-8 -*-
-"""
-Created on Thu Dec  1 14:21:55 2016
-
-@author: celin
-"""
 
 import os
 from shutil import copyfile
