@@ -20,10 +20,12 @@ y_train_pred_list = []
 mae_list = []
 params_list = []
 runtime_list = []
+idx = []
 for i in range(n_rounds):
     filename = os.path.join(dirname, 'svr_sample'+str(i)+'.pkl')
     if not os.path.exists(filename):
         continue
+    idx.append(i)
     y_test_pred, y_train_pred, mae, param_sample, runtime = \
         read_data(filename)
     y_test_pred_list.append(y_test_pred)
